@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/../FacialPyPi/.idea/FacialPyPi.iml" filepath="$PROJECT_DIR$/../FacialPyPi/.idea/FacialPyPi.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/remotePyPi.iml" filepath="$PROJECT_DIR$/.idea/remotePyPi.iml" />
     </modules>
   </component>
