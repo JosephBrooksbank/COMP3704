@@ -1,81 +1,73 @@
-# import the necessary packages
+
+
 from imutils.video import VideoStream
-import numpy as np
-import argparse
-import imutils
+import time
 import time
 import cv2
+from roku import Roku
 
-# construct the argument parse and parse the arguments
-ap = argparse.ArgumentParser()
-ap.add_argument("-p", "--prototxt", required=True,
-                help="path to Caffe 'deploy' prototxt file")
-ap.add_argument("-m", "--model", required=True,
-                help="path to Caffe pre-trained model")
-ap.add_argument("-c", "--confidence", type=float, default=0.5,
-                help="minimum probability to filter weak detections")
-args = vars(ap.parse_args())
+# time until roku shuts off, in seconds (600s = 10 minutes)
+TIMEOUT = 600
 
-# load our serialized model from disk
-print("[INFO] loading model...")
-net = cv2.dnn.readNetFromCaffe(args["prototxt"], args["model"])
+roku = 0
+rList = Roku.discover()
+for r in rList:
+    if r.port == 8060:
+        roku = r
+if roku == 0:
+    raise Exception('No valid Rokus found on network')
 
-# initialize the video stream and allow the camera sensor to warm up
-print("[INFO] starting video stream...")
-## Threaded video stream so that processing goes faster
-vs = VideoStream(usePiCamera=True).start()
-# camera takes some time to start up, so we have to wait for it
-time.sleep(2.0)
 
-# loop over the frames from the video stream
-while True:
-    # grab the frame from the threaded video stream and resize it
-    # to have a maximum width of 400 pixels
-    frame = vs.read()
-    frame = imutils.resize(frame, width=400)
 
-    # grab the frame dimensions and convert it to a blob
-    (h, w) = frame.shape[:2]
-    blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0,
-                                 (300, 300), (104.0, 177.0, 123.0))
+try:
 
-    # pass the blob through the network and obtain the detections and
-    # predictions
-    net.setInput(blob)
-    detections = net.forward()
+    #  Loading model, I DID NOT MAKE THIS, FROM OPENCV GITHUB REPOSITORY
+    net = cv2.dnn.readNetFromCaffe("deploy.prototxt.txt", "model.caffemodel")
 
-    # For every face detected, do some computations
-    for i in range(0, detections.shape[2]):
+    # initializing pi camera to a video stream, using a python image/video library imutils
+    vs = VideoStream(usePiCamera=True).start()
+    # camera takes some time to turn on, so giving it time here
+    time.sleep(2.0)
 
-        # confidence is the probability that the shape is actually a face
-        confidence = detections[0, 0, i, 2]
+    # loop over the frames from the video stream
+    while True:
+        numFaces = 0
 
-        # filter out weak detections by ensuring the `confidence` is
-        # greater than the minimum confidence
-        if confidence < args["confidence"]:
-            continue
+       # getting frame
+        frame = vs.read()
 
-        # compute the (x, y)-coordinates of the bounding box for the
-        # object
-        box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
-        (startX, startY, endX, endY) = box.astype("int")
+        # grab the frame dimensions and convert it to a blob (Binary Large OBject, pixel grouping detection)
+        (h, w) = frame.shape[:2]
+        # parameters for blob detection taken from OpenCV's facial detection benchmarking program (see OpenCV's Github)
+        blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0,
+                                     (300, 300), (104.0, 177.0, 123.0))
 
-        # draw the bounding box of the face along with the associated
-        # probability
-        text = "{:.2f}%".format(confidence * 100)
-        y = startY - 10 if startY - 10 > 10 else startY + 10
-        cv2.rectangle(frame, (startX, startY), (endX, endY),
-                      (0, 0, 255), 2)
-        cv2.putText(frame, text, (startX, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 2)
-    # show the output frame
-    cv2.imshow("Frame", frame)
-    key = cv2.waitKey(1) & 0xFF
+        # Pass blob data to dnn
+        net.setInput(blob)
+        # run forward pass
+        detections = net.forward()
 
-    # if the `q` key was pressed, break from the loop
-    if key == ord("q"):
-        break
+       #detector array format
+       # batchId, classId, confidence, left, top, right, bottom
 
-# do a bit of cleanup
-cv2.destroyAllWindows()
-vs.stop()
+        # loop over the detections (shape: 1,1,200,7, BASICALLY a 2D array in this case)
+        for i in range(0, detections.shape[2]):
+
+            # extract the confidence for each array entry
+            confidence = detections[0, 0, i, 2]
+
+            # if detection is less than 30% confident, ignore that detection
+            if confidence > 0.3:
+                numFaces += 1
+
+        if numFaces > 0:
+            lastSeen = time.localtime()
+        elif time.localtime() - lastSeen > TIMEOUT:
+            roku.poweroff()
+
+
+
+
+# This is a little dirty but its the best way I've found of exiting over ssh
+except (KeyboardInterrupt, SystemExit):
+    vs.stop()
