@@ -1,7 +1,8 @@
 
 
 from imutils.video import VideoStream
-import time
+
+from roku import RokuException
 import time
 import cv2
 from roku import Roku
@@ -15,9 +16,10 @@ for r in rList:
     if r.port == 8060:
         roku = r
 if roku == 0:
+    # This terminates the program -- I handle upkeep in cron to save resources
     raise Exception('No valid Rokus found on network')
 
-
+lastSeen = time.time()
 
 try:
 
@@ -35,7 +37,6 @@ try:
 
        # getting frame
         frame = vs.read()
-
         # grab the frame dimensions and convert it to a blob (Binary Large OBject, pixel grouping detection)
         (h, w) = frame.shape[:2]
         # parameters for blob detection taken from OpenCV's facial detection benchmarking program (see OpenCV's Github)
@@ -49,6 +50,7 @@ try:
 
        #detector array format
        # batchId, classId, confidence, left, top, right, bottom
+        ## all I really care about is confidence, I don't care WHERE the face is, only that one exists
 
         # loop over the detections (shape: 1,1,200,7, BASICALLY a 2D array in this case)
         for i in range(0, detections.shape[2]):
@@ -57,16 +59,26 @@ try:
             confidence = detections[0, 0, i, 2]
 
             # if detection is less than 30% confident, ignore that detection
-            if confidence > 0.3:
-                numFaces += 1
+            if confidence < 0.3:
+                continue
+            numFaces += 1
+            print("Face Found!")
+
 
         if numFaces > 0:
-            lastSeen = time.localtime()
-        elif time.localtime() - lastSeen > TIMEOUT:
-            roku.poweroff()
+            lastSeen = time.time()
+        else:
+            print(str(TIMEOUT - int(time.time() - lastSeen)) + " seconds until screen off!")
 
-
-
+            if int(time.time() - lastSeen) > TIMEOUT:
+             # the roku API gives an exception every time the TV power is turned off or on -- I think it doesn't
+             # send an ACK on this command, which the API doesn't like. anyway, it doesn't actually effect
+             # functionality, so I'm ignoring it.
+                try:
+                    roku.poweroff()
+                except RokuException:
+                    pass
+                lastSeen = time.time()
 
 # This is a little dirty but its the best way I've found of exiting over ssh
 except (KeyboardInterrupt, SystemExit):

@@ -1,12 +1,13 @@
 from roku import Roku
+from roku import RokuException
 import RPi.GPIO as GPIO
 import time
 
 
-PIN1 = 18
-PIN2 = 23
-PIN3 = 24
-PIN4 = 25
+PIN1 = 3
+PIN2 = 18
+PIN3 = 25
+PIN4 = 16
 
 # Connecting to Roku
 roku = 0
@@ -17,6 +18,7 @@ for r in rList:
     if r.port == 8060:
         roku = r
 if roku == 0:
+    # using systemD to handle upkeep, simpler than doing my own loop and probably more resource efficient
     raise Exception('No valid Rokus found on network')
 
 
@@ -34,22 +36,34 @@ while True:
     button3 = GPIO.input(PIN3)
     button4 = GPIO.input(PIN4)
 
-    if button1 == False:
-        print('Button 1 Pressed')
-        roku.power()
-        time.sleep(0.2)
+    # the roku API occasionally gives a nonfatal error, so I'm ignoring it :^)
+    try:
+        # Button 1: on / off
+        if button1 == False:
+            print('Button 1 Pressed')
 
-    if button2 == False:
-        print('Button 2 Pressed')
-        roku.play()
-        time.sleep(0.2)
 
-    if button3 == False:
-        print('Button 3 Pressed')
-        roku.left()
-        time.sleep(0.2)
-    if button4 == False:
-        print('Button 4 Pressed')
-        roku.right()
-        time.sleep(0.2)
+            roku.power()
 
+            time.sleep(0.2)
+
+        # Button 2: play / pause
+        if button2 == False:
+            print('Button 2 Pressed')
+            roku.play()
+            time.sleep(0.2)
+
+        # Button 3: Seek backwards
+        if button3 == False:
+            print('Button 3 Pressed')
+            roku.left()
+            time.sleep(0.2)
+
+        # Button 4: Seek forwards
+        if button4 == False:
+            print('Button 4 Pressed')
+            roku.right()
+            time.sleep(0.2)
+
+    except RokuException:
+        pass
