@@ -16,7 +16,7 @@ for r in rList:
     if r.port == 8060:
         roku = r
 if roku == 0:
-    # This terminates the program -- I handle upkeep in cron to save resources
+    # This terminates the program -- I handle upkeep in systemd to save resources
     raise Exception('No valid Rokus found on network')
 
 lastSeen = time.time()
